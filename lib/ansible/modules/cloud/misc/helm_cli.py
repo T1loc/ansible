@@ -91,6 +91,7 @@ options:
     default: present
     aliases: [ state ]
     version_added: "2.10"
+    type: str
   release_values:
     description:
         - Value to pass to chart
@@ -98,6 +99,7 @@ options:
     default: {}
     aliases: [ values ]
     version_added: "2.10"
+    type: dict
   tiller_host:
     description:
       - Address of Tiller
