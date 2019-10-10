@@ -231,12 +231,6 @@ except ImportError:
 
 from ansible.module_utils.basic import AnsibleModule
 
-# TODO:
-#   * rollback (need to parse release['Chart'] in get_release_status which of type chart_name-semver)
-#   * helm 3
-#       * [MISSING] list --output yaml
-#       * [MISSING] --namespace https://github.com/helm/helm/issues/5628
-
 module = None
 is_helm_2 = True
 
@@ -297,10 +291,13 @@ def get_release(state, release_name, release_namespace):
 
 # Get Release state from deployed release
 def get_release_status(command, release_name, release_namespace):
-    list_command = command + " list --output=yaml " + release_name
+    list_command = command + " list --output=yaml"
 
     if not is_helm_2:
         list_command += " --namespace=" + release_namespace
+        list_command += " --filter "
+
+    list_command += release_name
 
     rc, out, err = module.run_command(list_command)
 
