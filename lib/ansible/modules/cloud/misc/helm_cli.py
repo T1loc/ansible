@@ -98,7 +98,6 @@ options:
     description:
         - Value to pass to chart
     required: false
-    default: {}
     aliases: [ values ]
     version_added: "2.10"
     type: dict
@@ -147,9 +146,8 @@ options:
     version_added: "2.10"
   wait_timeout:
     description:
-      - Timeout when wait option is enabled in second
-    default: 300
-    type: int
+      - Timeout when wait option is enabled (helm2 is a number of seconds, helm3 is a duration
+    type: str
     version_added: "2.10"
 '''
 
@@ -233,6 +231,11 @@ except ImportError:
 
 from ansible.module_utils.basic import AnsibleModule
 
+# TODO:
+#   * rollback (need to parse release['Chart'] in get_release_status which of type chart_name-semver)
+#   * helm 3
+#       * get value give too much vars:
+
 module = None
 is_helm_2 = True
 
@@ -284,8 +287,13 @@ def get_values(command, release_name, release_namespace):
 
 # Get Release from all deployed releases
 def get_release(state, release_name, release_namespace):
-    if state is not None and 'Releases' in state:
-        for release in state['Releases']:
+    if state is not None:
+        if is_helm_2:
+            releases = getattr(state, 'Releases', [])
+        else:
+            releases = state
+
+        for release in releases:
             if release['Name'] == release_name and (is_helm_2 or release['Namespace'] == release_namespace):
                 return release
     return None
@@ -358,7 +366,7 @@ def deploy(command, release_name, release_namespace, release_values, chart_name,
     if wait:
         deploy_command += " --wait"
         if wait_timeout is not None:
-            deploy_command += " --timeout " + str(wait_timeout)
+            deploy_command += " --timeout " + wait_timeout
 
     if force:
         deploy_command += " --force"
@@ -366,7 +374,7 @@ def deploy(command, release_name, release_namespace, release_values, chart_name,
     if disable_hook:
         deploy_command += " --no-hooks"
 
-    if release_values != {}:
+    if release_values != {} and release_values != "null":
         try:
             import tempfile
         except ImportError:
@@ -384,17 +392,12 @@ def deploy(command, release_name, release_namespace, release_values, chart_name,
     return deploy_command
 
 
-# Delete release chart
-def delete(command, release_name, purge, disable_hook):
-    if is_helm_2:
-        delete_command = command + " delete"
-    else:
-        delete_command = command + " uninstall"
+# Delete release chart for helm2
+def delete_2(command, release_name, purge, disable_hook):
+    delete_command = command + " delete"
 
-    if is_helm_2 and purge:
+    if purge:
         delete_command += " --purge"
-    elif not is_helm_2 and not purge:
-        delete_command += " --keep-history"
 
     if disable_hook:
         delete_command += " --no-hooks"
@@ -403,6 +406,20 @@ def delete(command, release_name, purge, disable_hook):
 
     return delete_command
 
+
+# Delete release chart for helm3
+def delete_3(command, release_name, release_namespace, purge, disable_hook):
+    delete_command = command + " uninstall --namespace=" + release_namespace
+
+    if not purge:
+        delete_command += " --keep-history"
+
+    if disable_hook:
+        delete_command += " --no-hooks"
+
+    delete_command += " " + release_name
+
+    return delete_command
 
 def main():
     global module, is_helm_2
@@ -417,7 +434,7 @@ def main():
             release_name=dict(type='str', required=True, aliases=['name']),
             release_namespace=dict(type='str', default='default', aliases=['namespace']),
             release_state=dict(default='present', choices=['present', 'absent'], aliases=['state']),
-            release_values=dict(type='dict', default={}, aliases=['values']),
+            release_values=dict(type='dict', aliases=['values']),
             tiller_host=dict(type='str'),
             tiller_namespace=dict(type='str', default='kube-system'),
             update_repo_cache=dict(type='bool', default=False),
@@ -427,7 +444,7 @@ def main():
             force=dict(type='bool', default=False),
             purge=dict(type='bool', default=True),
             wait=dict(type='bool', default=False),
-            wait_timeout=dict(type='int', default=300),
+            wait_timeout=dict(type='str'),
         ),
         required_if=[
             ('release_state', 'present', ['release_name', 'chart_ref']),
@@ -488,7 +505,10 @@ def main():
     # keep helm_cmd_common for get_release_status in module_exit_json
     helm_cmd = helm_cmd_common
     if release_state == "absent" and release_status is not None:
-        helm_cmd = delete(helm_cmd, release_name, purge, disable_hook)
+        if is_helm_2:
+            helm_cmd = delete_2(helm_cmd, release_name, purge, disable_hook)
+        else:
+            helm_cmd = delete_3(helm_cmd, release_name, release_namespace,purge, disable_hook)
         changed = True
     elif release_state == "present":
 
@@ -500,6 +520,9 @@ def main():
             if chart_repo_username is not None and chart_repo_password is not None:
                 helm_cmd += " --username=" + chart_repo_username
                 helm_cmd += " --password=" + chart_repo_password
+
+        if release_values is None and is_helm_2:
+            release_values = "{}"
 
         # Fetch chart info to have real version and real name for chart_ref from archive, folder or url
         chart_info = fetch_chart_info(helm_cmd, chart_ref)
