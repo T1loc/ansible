@@ -330,7 +330,7 @@ def run_repo_update(command):
 
 
 # Get chart info
-def fecth_chart_info(command, chart_ref):
+def fetch_chart_info(command, chart_ref):
     if is_helm_2:
         inspect_command = command + " inspect chart " + chart_ref
     else:
@@ -492,7 +492,7 @@ def main():
                 helm_cmd += " --password=" + chart_repo_password
 
         # Fetch chart info to have real version and real name for chart_ref from archive, folder or url
-        chart_info = fecth_chart_info(helm_cmd, chart_ref)
+        chart_info = fetch_chart_info(helm_cmd, chart_ref)
 
         if release_status is None:  # Not installed
             helm_cmd = deploy(helm_cmd, release_name, release_namespace, release_values, chart_ref, wait, wait_timeout,
