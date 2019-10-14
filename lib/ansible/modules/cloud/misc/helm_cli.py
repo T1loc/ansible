@@ -23,6 +23,8 @@ notes:
   - Support for helm3 is not finished waiting fix on helm 3
 requirements:
   - "helm"
+  - "yaml"
+  - "tempfile"
 options:
   binary_path:
     description:
@@ -225,9 +227,9 @@ command:
 
 try:
     import yaml
-    import tempfile
+    HAS_YAML = True
 except ImportError:
-    pass
+    HAS_YAML = False
 
 from ansible.module_utils.basic import AnsibleModule
 
@@ -365,6 +367,11 @@ def deploy(command, release_name, release_namespace, release_values, chart_name,
         deploy_command += " --no-hooks"
 
     if release_values != {}:
+        try:
+            import tempfile
+        except ImportError:
+            module.fail_json(msg="Could not import the tempfile python module. Please install `tempfile` package.")
+
         fd, path = tempfile.mkstemp(suffix='.yml')
         with open(path, 'w') as yaml_file:
             yaml.dump(release_values, yaml_file, default_flow_style=False)
@@ -432,6 +439,9 @@ def main():
         ],
         supports_check_mode=True,
     )
+
+    if not HAS_YAML:
+        module.fail_json(msg="Could not import the yaml python module. Please install `yaml` package.")
     changed = False
 
     bin_path = module.params.get('binary_path')
