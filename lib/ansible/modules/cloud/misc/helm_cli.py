@@ -19,6 +19,7 @@ description:
 version_added: "2.10"
 author:
   - Lucas Boisserie (@LucasBoisserie)
+  - Matthieu Diehr (@d-matt)
 notes:
   - Support for helm3 is not finished waiting fix on helm 3
 requirements:
