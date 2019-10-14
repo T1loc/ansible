@@ -291,7 +291,7 @@ def get_release(state, release_name, release_namespace):
 
 # Get Release state from deployed release
 def get_release_status(command, release_name, release_namespace):
-    list_command = command + " list --output=yaml"
+    list_command = command + " list --output=yaml "
 
     if not is_helm_2:
         list_command += " --namespace=" + release_namespace
