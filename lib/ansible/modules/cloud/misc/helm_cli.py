@@ -99,6 +99,7 @@ options:
     description:
         - Value to pass to chart
     required: false
+    default: {}
     aliases: [ values ]
     version_added: "2.10"
     type: dict
@@ -159,6 +160,21 @@ EXAMPLES = '''
     chart_ref: stable/grafana
     chart_version: 3.3.8
     tiller_namespace: helm
+    values:
+      replicas: 2
+
+# Load Value from template
+- helm_cli:
+    name: test
+    chart_ref: stable/grafana
+    tiller_namespace: helm
+    values: "{{ lookup('template', 'somefile.yaml') | from_yaml }}"
+
+# With Helm3
+- helm_cli:
+    name: test
+    chart_ref: stable/grafana
+    release_namespace: monitoring
     values:
       replicas: 2
 
@@ -234,8 +250,6 @@ from ansible.module_utils.basic import AnsibleModule
 
 # TODO:
 #   * rollback (need to parse release['Chart'] in get_release_status which of type chart_name-semver)
-#   * helm 3
-#       * get value give too much vars: https://github.com/helm/helm/issues/6659
 
 module = None
 is_helm_2 = True
@@ -283,7 +297,11 @@ def get_values(command, release_name, release_namespace):
             command=get_command
         )
 
-    return yaml.safe_load(out)
+    # Helm 3 return "null" string when no values are set
+    if not is_helm_2 and out == "null":
+        return yaml.safe_load('{}')
+    else:
+        return yaml.safe_load(out)
 
 
 # Get Release from all deployed releases
@@ -375,7 +393,7 @@ def deploy(command, release_name, release_namespace, release_values, chart_name,
     if disable_hook:
         deploy_command += " --no-hooks"
 
-    if release_values != {} and release_values != "null":
+    if release_values != {}:
         try:
             import tempfile
         except ImportError:
@@ -435,7 +453,7 @@ def main():
             release_name=dict(type='str', required=True, aliases=['name']),
             release_namespace=dict(type='str', default='default', aliases=['namespace']),
             release_state=dict(default='present', choices=['present', 'absent'], aliases=['state']),
-            release_values=dict(type='dict', aliases=['values']),
+            release_values=dict(type='dict', default={}, aliases=['values']),
             tiller_host=dict(type='str'),
             tiller_namespace=dict(type='str', default='kube-system'),
             update_repo_cache=dict(type='bool', default=False),
@@ -521,9 +539,6 @@ def main():
             if chart_repo_username is not None and chart_repo_password is not None:
                 helm_cmd += " --username=" + chart_repo_username
                 helm_cmd += " --password=" + chart_repo_password
-
-        if release_values is None and is_helm_2:
-            release_values = "{}"
 
         # Fetch chart info to have real version and real name for chart_ref from archive, folder or url
         chart_info = fetch_chart_info(helm_cmd, chart_ref)
