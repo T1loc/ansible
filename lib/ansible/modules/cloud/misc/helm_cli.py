@@ -248,9 +248,6 @@ except ImportError:
 
 from ansible.module_utils.basic import AnsibleModule
 
-# TODO:
-#   * rollback (need to parse release['Chart'] in get_release_status which of type chart_name-semver)
-
 module = None
 is_helm_2 = True
 
