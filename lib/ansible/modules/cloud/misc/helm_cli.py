@@ -310,7 +310,7 @@ def get_values(command, release_name, release_namespace):
 def get_release(state, release_name, release_namespace):
     if state is not None:
         if is_helm_2:
-            releases = getattr(state, 'Releases', [])
+            releases = state['Releases']
         else:
             releases = state
 
