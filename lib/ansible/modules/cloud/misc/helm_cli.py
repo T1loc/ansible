@@ -122,6 +122,11 @@ options:
     version_added: "2.10"
 
 #Helm options
+  context:
+    description:
+      - Name of the kubeconfig context to use
+    type: str
+    version_added: "2.10"
   disable_hook:
     description:
       - Helm option to disable hook on install/upgrade/delete
@@ -373,11 +378,14 @@ def fetch_chart_info(command, chart_ref):
 
 
 # Install/upgrade/rollback release chart
-def deploy(command, release_name, release_namespace, release_values, chart_name, wait, wait_timeout, disable_hook, force):
+def deploy(command, release_name, release_namespace, release_values, chart_name, wait, wait_timeout, disable_hook, force, context):
     deploy_command = command + " upgrade -i"  # install/upgrade
 
     # Always reset values to keep release_values equal to values released
     deploy_command += " --reset-values"
+
+    if context is not None:
+        deploy_command += " --kube-context " + context
 
     if wait:
         deploy_command += " --wait"
@@ -456,6 +464,7 @@ def main():
             update_repo_cache=dict(type='bool', default=False),
 
             # Helm options
+            context=dict(type='str'),
             disable_hook=dict(type='bool', default=False),
             force=dict(type='bool', default=False),
             purge=dict(type='bool', default=True),
@@ -492,6 +501,7 @@ def main():
     update_repo_cache = module.params.get('update_repo_cache')
 
     # Helm options
+    context = module.params.get('context')
     disable_hook = module.params.get('disable_hook')
     force = module.params.get('force')
     purge = module.params.get('purge')
@@ -542,7 +552,7 @@ def main():
 
         if release_status is None:  # Not installed
             helm_cmd = deploy(helm_cmd, release_name, release_namespace, release_values, chart_ref, wait, wait_timeout,
-                              disable_hook, False)
+                              disable_hook, False, context)
             changed = True
 
         elif release_namespace != release_status['Namespace'] and is_helm_2:
@@ -554,7 +564,7 @@ def main():
         elif force or release_values != release_status['Values'] \
                 or (chart_info['name'] + '-' + chart_info['version']) != release_status["Chart"]:
             helm_cmd = deploy(helm_cmd, release_name, release_namespace, release_values, chart_ref, wait, wait_timeout,
-                              disable_hook, force)
+                              disable_hook, force, context)
             changed = True
 
     if module.check_mode:
