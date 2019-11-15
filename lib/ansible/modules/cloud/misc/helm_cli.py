@@ -24,7 +24,6 @@ notes:
 requirements:
   - "helm"
   - "yaml"
-  - "tempfile"
 options:
   binary_path:
     description:
